@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Galatasaray – Barcelona Simülatörü | ÖzkanDiyeBirisi</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#09111f;color:#f4f7fc;font:16px system-ui,-apple-system,Segoe UI,sans-serif}
+main{max-width:860px;margin:auto;padding:16px}h1{font-size:clamp(24px,5vw,34px);margin:3px 0 5px}p{color:#b8c6da;margin:0 0 14px}
+.card{background:#111e30;border:1px solid #263750;border-radius:18px;padding:13px;box-shadow:0 12px 35px #0004}
+canvas{display:block;width:100%;height:auto;border-radius:12px;background:#0b1624}
+.layout{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}.controls{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+button{border:0;border-radius:12px;padding:12px 14px;font-weight:800;background:#eaf0fa;color:#111a29;cursor:pointer}button.primary{background:#f2c94c}button:disabled{opacity:.5}
+.score{display:flex;align-items:center;justify-content:center;gap:12px;font-size:clamp(25px,6vw,38px);font-weight:900;margin:2px 0 10px}.team{font-size:13px;letter-spacing:.5px;color:#dce6f5}.meta{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;color:#bac8dc;font-size:13px}
+.feed{margin-top:10px;background:#091321;border-radius:12px;padding:12px;min-height:44px;line-height:1.45}
+label{display:flex;gap:8px;align-items:center;color:#d5deec;font-size:14px}.note{font-size:12px;color:#91a5bf;margin:10px 2px 0}
+@media(min-width:700px){.layout{grid-template-columns:minmax(0,1.15fr) minmax(250px,.85fr);align-items:start}.side{position:sticky;top:12px}}
+</style></head>
+<body><main>
+<h1>⚽ Galatasaray – Barcelona Simülatörü</h1><p>Dönen Arena • 90 dakikalık maç, 1 dakikada • Top hangi kaleye girerse o takım gol kazanır.</p>
+<div class="layout">
+<section class="card">
+<div class="score"><span class="team">🔴 GALATASARAY</span><span id="s1">0</span><span style="color:#7f91aa">:</span><span id="s2">0</span><span class="team">🔵 BARCELONA</span></div>
+<canvas id="game" width="600" height="660" aria-label="Dönen yuvarlak arena futbol oyunu"></canvas>
+<div class="meta" style="margin-top:10px"><span id="status">Başlamaya hazır</span><span id="clock">00:00</span></div>
+<div id="goalBanner" style="display:none;text-align:center;margin-top:10px;padding:13px;border-radius:12px;background:linear-gradient(90deg,#8d0c24,#f2c94c,#073f88);color:white;font-weight:1000;font-size:clamp(24px,6vw,38px);letter-spacing:2px;text-shadow:0 2px 8px #000">GOOOLLL!!!</div>
+<div class="feed" id="feed">Başlamak için “Oyunu Başlat” düğmesine bas.</div>
+<div id="events" class="feed" style="margin-top:8px"><b>MAÇ AKIŞI</b><br>00' — Maç başladı.</div>
+</section>
+<aside class="card side">
+<h3 style="margin:2px 0 8px">Oyun kontrolü</h3>
+<p style="font-size:13px">Arena döner; top duvarlardan ve sahadaki 10 dengeli engelden sekerek yön değiştirir. 60 saniye, 90 dakikalık maç süresini temsil eder.</p>
+<label><input id="spin" type="checkbox" checked> Platform dönsün</label>
+
+<div class="controls">
+<button id="start" class="primary">▶ Oyunu Başlat</button>
+<button id="reset">↻ Yeni Maç</button>
+<button id="pause" disabled>Ⅱ Duraklat</button>
+<button id="record">● Videoyu Kaydet</button>
+</div>
+<p class="note">Video kaydı tarayıcı destekliyorsa WebM olarak indirilir. Bu, iki disk ve top fiziği kullanan bir mini oyun prototipidir; gerçek maç simülasyonu değildir.</p>
+</aside></div><footer style="text-align:center;margin:18px 0 4px;padding:14px 8px;border-top:1px solid #263750;color:#91a5bf;font-size:13px">Bir mini oyun deneyi • <span style="font-family:cursive;font-size:19px;font-style:italic;font-weight:800;letter-spacing:.3px;color:#eef6ff;text-shadow:0 0 7px #268cff,0 0 14px #1265ff">ÖzkanDiyeBirisi</span> <span aria-hidden="true" style="color:#4aa3ff">🦂</span></footer></main>
+<script>
+(()=>{
+const c=document.getElementById('game'),ctx=c.getContext('2d'),$=id=>document.getElementById(id);
+const W=c.width,H=c.height,CX=W/2,CY=H/2,R=224,GOAL=62;
+let running=false,paused=false,raf=0,last=0,elapsed=0,angle=0,score1=0,score2=0,seed=0,recording=false,recorder=null,chunks=[];
+let ball,lastBallPos={x:0,y:0},stillTime=0,spinSpeed=0.012,goalEvents=[],bannerTimer=0;
+const obstacles=[{x:-82,y:-82,r:15},{x:0,y:-112,r:15},{x:82,y:-82,r:15},{x:-112,y:-8,r:15},{x:112,y:-8,r:15},{x:-82,y:82,r:15},{x:0,y:112,r:15},{x:82,y:82,r:15},{x:-42,y:38,r:14},{x:42,y:-38,r:14}];
+const rosters={
+  1:['Mauro Icardi','Victor Osimhen','Dries Mertens','Barış Alper Yılmaz','Lucas Torreira','Kerem Aktürkoğlu'],
+  2:['Robert Lewandowski','Lamine Yamal','Raphinha','Pedri','Ferran Torres','Dani Olmo']
+};
+function rnd(){seed=(seed*1664525+1013904223)>>>0;return seed/4294967296}
+function resetPositions(){ball={x:(rnd()-.5)*55,y:(rnd()-.5)*55,vx:(rnd()<.5?-1:1)*(5+rnd()*2),vy:(rnd()<.5?-1:1)*(5+rnd()*2),r:9};lastBallPos={x:ball.x,y:ball.y};stillTime=0;
+// No players in this mode: the arena and fast ball are the whole game.
+}
+function newGame(){running=false;paused=false;cancelAnimationFrame(raf);score1=score2=0;elapsed=0;angle=0;spinSpeed=0.012;goalEvents=[];clearTimeout(bannerTimer);$('goalBanner').style.display='none';$('events').innerHTML='<b>MAÇ AKIŞI</b><br>00\' — Maç başladı.';seed=(Math.random()*0xffffffff)>>>0;resetPositions();$('s1').textContent=0;$('s2').textContent=0;$('clock').textContent='00:00';$('status').textContent='Yeni maç hazır';$('start').disabled=false;$('pause').disabled=true;$('pause').textContent='Ⅱ Duraklat';$('feed').textContent='Kura çekildi. Diskler hazır. Başlat ve golü bekle!';draw(); }
+function circle(x,y,r,fill,stroke,lw=3){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.lineWidth=lw;ctx.strokeStyle=stroke;ctx.stroke()}}
+function draw(){
+ctx.clearRect(0,0,W,H);
+const bg=ctx.createLinearGradient(0,0,W,H);bg.addColorStop(0,'#17283b');bg.addColorStop(1,'#07101d');ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+// faint arena shadow
+ctx.save();ctx.translate(CX,CY+8);circle(0,0,R+12,'#03081188',null);ctx.restore();
+ctx.save();ctx.translate(CX,CY);ctx.rotate(angle);
+circle(0,0,R,'#087844','#d9f5e2',5);
+// circular pitch rings
+ctx.strokeStyle='#a8e4c0';ctx.lineWidth=2;ctx.globalAlpha=.7;
+ctx.beginPath();ctx.arc(0,0,R*.72,0,Math.PI*2);ctx.stroke();
+ctx.beginPath();ctx.arc(0,0,R*.38,0,Math.PI*2);ctx.stroke();
+ctx.beginPath();ctx.moveTo(-R*.72,0);ctx.lineTo(R*.72,0);ctx.stroke();ctx.globalAlpha=1;
+// goal cutouts at top/bottom
+ctx.fillStyle='#09111f';ctx.fillRect(-GOAL/2,-R-7,GOAL,34);ctx.fillRect(-GOAL/2,R-27,GOAL,34);
+ctx.strokeStyle='#fff';ctx.lineWidth=5;ctx.strokeRect(-GOAL/2,-R-2,GOAL,25);ctx.strokeRect(-GOAL/2,R-23,GOAL,25);
+ctx.fillStyle='#e52d4f';ctx.font='bold 13px system-ui';ctx.textAlign='center';ctx.fillText('GALATASARAY',0,R-38);
+ctx.fillStyle='#4f9bff';ctx.fillText('BARCELONA',0,-R+42);
+// Small stationary goalkeepers: fixed relative to each goal and rotate with the arena.
+circle(0,-R+35,10,'#f2c94c','#202c3b',3);circle(-3,-R+32,2.5,'#fff',null);
+circle(0,R-35,10,'#f2c94c','#202c3b',3);circle(-3,R-38,2.5,'#fff',null);
+// subtle rotation marker
+ctx.strokeStyle='#f2c94c';ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,0,R+1,-.52,-.18);ctx.stroke();
+ctx.beginPath();ctx.moveTo(Math.cos(-.18)*(R+1),Math.sin(-.18)*(R+1));ctx.lineTo(Math.cos(-.18)*(R-12),Math.sin(-.18)*(R-12));ctx.stroke();
+// Small bumpers rotate with the pitch and redirect the ball on impact.
+obstacles.forEach((o,i)=>{circle(o.x,o.y,o.r,i===1?'#f2c94c':'#e7edf7','#182437',3);circle(o.x-4,o.y-4,3,'#ffffff',null);});
+// Arena rotates underneath the free-moving ball.
+ctx.restore();
+circle(CX+ball.x,CY+ball.y,ball.r,'#fff','#202c3b',2);
+circle(CX+ball.x-2,CY+ball.y-2,2.4,'#202c3b',null);
+// top label
+ctx.fillStyle='#0a1422';ctx.beginPath();ctx.roundRect(155,18,290,32,16);ctx.fill();ctx.fillStyle='#f5f7fb';ctx.font='bold 12px system-ui';ctx.textAlign='center';ctx.fillText('DÖNEN ARENA • GOL OYUNU',300,39);ctx.textAlign='start';
+}
+function physics(dt){
+ const step=Math.min(2.5,dt/16.67);
+ // Platform acceleration only. The ball travels in a straight line between impacts.
+ if($('spin').checked){
+   spinSpeed=Math.min(0.065,spinSpeed+dt*0.00000022);
+   angle+=spinSpeed*step;
+ }
+ // No random steering or mid-flight acceleration: only collisions add speed.
+ ball.x+=ball.vx*step;
+ ball.y+=ball.vy*step;
+ // Goal mouths rotate with the arena, so test the ball in arena-local coordinates.
+ const ca=Math.cos(angle),sa=Math.sin(angle);
+ const localX=ca*ball.x+sa*ball.y;
+ const localY=-sa*ball.x+ca*ball.y;
+ const inMouth=Math.abs(localX)<GOAL/2-ball.r*0.15;
+ // A goal is scored when the ball crosses the goal line through the opening.
+ if(localY < -R+ball.r+4 && inMouth){score1++;$('s1').textContent=score1;goal(1);return;}
+ if(localY > R-ball.r-4 && inMouth){score2++;$('s2').textContent=score2;goal(2);return;}
+ // Small fixed keepers sit in front of each goal. A direct hit rebounds; shots can pass beside them.
+ const lvx=ca*ball.vx+sa*ball.vy, lvy=-sa*ball.vx+ca*ball.vy;
+ for(const keeper of [{x:0,y:-R+35,r:10},{x:0,y:R-35,r:10}]){
+   const dx=localX-keeper.x,dy=localY-keeper.y,dist=Math.hypot(dx,dy);
+   if(dist<keeper.r+ball.r){
+     const nx=dx/(dist||1),ny=dy/(dist||1),dot=lvx*nx+lvy*ny;
+     if(dot<0){const rvx=lvx-2*dot*nx,rvy=lvy-2*dot*ny;ball.vx=ca*rvx-sa*rvy;ball.vy=sa*rvx+ca*rvy;
+       const push=(keeper.r+ball.r-dist);ball.x+=ca*nx*push-sa*ny*push;ball.y+=sa*nx*push+ca*ny*push;
+       const speed=Math.hypot(ball.vx,ball.vy)||1;ball.vx=ball.vx/speed*Math.min(18,speed+0.25);ball.vy=ball.vy/speed*Math.min(18,speed+0.25);return;}
+   }
+ }
+ // Test collisions against bumpers in arena-local coordinates; reflect and redirect.
+ for(const o of obstacles){
+   const dx=localX-o.x,dy=localY-o.y,dist=Math.hypot(dx,dy);
+   if(dist<o.r+ball.r){
+     const nx=dx/(dist||1),ny=dy/(dist||1);
+     const dot=lvx*nx+lvy*ny;
+     if(dot<0){
+       const rvx=lvx-2*dot*nx,rvy=lvy-2*dot*ny;
+       ball.vx=ca*rvx-sa*rvy;ball.vy=sa*rvx+ca*rvy;
+       ball.x+=ca*nx*(o.r+ball.r-dist)-sa*ny*(o.r+ball.r-dist);
+       ball.y+=sa*nx*(o.r+ball.r-dist)+ca*ny*(o.r+ball.r-dist);
+       const speed=Math.hypot(ball.vx,ball.vy)||1,boost=Math.min(18,speed+0.45);
+       ball.vx=ball.vx/speed*boost;ball.vy=ball.vy/speed*boost;
+       return;
+     }
+   }
+ }
+ // Bounce off the circular wall. The impact adds speed, then the ball continues straight.
+ const arenaDist=Math.hypot(ball.x,ball.y);
+ if(arenaDist>R-ball.r-2){
+   // If crossing the rim near either goal opening, let the ball exit and score.
+   const hitLocalX=ca*ball.x+sa*ball.y;
+   const hitLocalY=-sa*ball.x+ca*ball.y;
+   const atMouth=Math.abs(hitLocalX)<GOAL/2-ball.r*0.15;
+   if(atMouth && hitLocalY < 0){score1++;$('s1').textContent=score1;goal(1);return;}
+   if(atMouth && hitLocalY > 0){score2++;$('s2').textContent=score2;goal(2);return;}
+   const nx=ball.x/(arenaDist||1),ny=ball.y/(arenaDist||1);
+   ball.x=nx*(R-ball.r-2);ball.y=ny*(R-ball.r-2);
+   const dot=ball.vx*nx+ball.vy*ny;
+   ball.vx-=2*dot*nx;ball.vy-=2*dot*ny;
+   // Collision impulse increases speed; direction remains the reflected straight line.
+   const v=Math.hypot(ball.vx,ball.vy)||1;
+   const boosted=Math.min(18,v+0.8);
+   ball.vx=ball.vx/v*boosted;ball.vy=ball.vy/v*boosted;
+ }
+ // Cap maximum speed so the simulation remains playable.
+ const v=Math.hypot(ball.vx,ball.vy);
+ if(v>18){ball.vx=ball.vx/v*18;ball.vy=ball.vy/v*18}
+}
+function goal(team){
+ const minute=Math.max(1,Math.min(90,Math.ceil(elapsed/60000*90)));
+ const stamp=minute+"'";
+ const teamName=team===1?'Galatasaray':'Barcelona';
+ const scorer=rosters[team][Math.floor(rnd()*rosters[team].length)];
+ $('goalBanner').textContent='GOOOLLL!!!';
+ $('goalBanner').style.display='block';
+ clearTimeout(bannerTimer);bannerTimer=setTimeout(()=>{$('goalBanner').style.display='none'},2200);
+ $('feed').innerHTML='<b style="color:#f2c94c">⚽ GOOOLLL!!!</b> '+teamName+' golü buldu!';
+ goalEvents.unshift(stamp+' — ⚽ GOL! '+teamName+' • '+scorer);
+ $('events').innerHTML='<b>MAÇ AKIŞI</b><br>'+goalEvents.slice(0,8).join('<br>');
+ resetPositions();
+}
+function tick(now){if(!running)return;if(!paused){const dt=Math.min(45,now-last||16);elapsed+=dt;physics(dt);const minute=Math.min(90,Math.floor(elapsed/60000*90));$('clock').textContent=String(minute).padStart(2,'0')+':00';if(elapsed>=60000){running=false;$('status').textContent='Maç sona erdi';$('feed').innerHTML='<b>🔔 SON DÜDÜK!</b> Galatasaray '+score1+' – '+score2+' Barcelona';$('start').disabled=false;$('pause').disabled=true;$('pause').textContent='Ⅱ Duraklat';if(recording)stopRecording();}}last=now;draw();if(running)raf=requestAnimationFrame(tick)}
+function start(){if(running)return;running=true;paused=false;last=performance.now();$('start').disabled=true;$('pause').disabled=false;$('status').textContent='Oyun oynanıyor';$('feed').textContent='Top engellerden sekiyor! Her saniye maç saatinde bir dakikaya karşılık geliyor.';raf=requestAnimationFrame(tick)}
+function pause(){if(!running)return;paused=!paused;$('pause').textContent=paused?'▶ Devam Et':'Ⅱ Duraklat';$('status').textContent=paused?'Duraklatıldı':'Oyun oynanıyor';if(!paused){last=performance.now();raf=requestAnimationFrame(tick)}}
+function record(){if(recording){recorder.stop();recording=false;$('record').textContent='● Videoyu Kaydet';return}
+if(!c.captureStream||!window.MediaRecorder){$('feed').textContent='Bu tarayıcı video kaydını desteklemiyor.';return}
+try{const stream=c.captureStream(30),mime=MediaRecorder.isTypeSupported('video/webm;codecs=vp9')?'video/webm;codecs=vp9':'video/webm';recorder=new MediaRecorder(stream,{mimeType:mime});chunks=[];recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};recorder.onstop=()=>{const blob=new Blob(chunks,{type:'video/webm'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='donen-arena-gol-oyunu.webm';a.click();setTimeout(()=>URL.revokeObjectURL(url),4000);$('feed').textContent='Video kaydı indirildi.'};recorder.start();recording=true;$('record').textContent='■ Kaydı Bitir';$('feed').textContent='Kayıt başladı. Bitirmek için aynı düğmeye bas.'}catch(e){$('feed').textContent='Kayıt başlatılamadı: '+e.message}}
+$('start').addEventListener('click',start);$('pause').addEventListener('click',pause);$('reset').addEventListener('click',newGame);$('record').addEventListener('click',record);
+newGame();
+})();
+</script></body></html>
