@@ -47,9 +47,11 @@ let running=false,paused=false,raf=0,last=0,elapsed=0,angle=0,score1=0,score2=0,
 let ball,lastBallPos={x:0,y:0},stillTime=0,spinSpeed=0.012,goalEvents=[],bannerTimer=0;
 const obstacles=[{x:-82,y:-82,r:15},{x:0,y:-112,r:15},{x:82,y:-82,r:15},{x:-112,y:-8,r:15},{x:112,y:-8,r:15},{x:-82,y:82,r:15},{x:0,y:112,r:15},{x:82,y:82,r:15},{x:-42,y:38,r:14},{x:42,y:-38,r:14}];
 const rosters={
-  1:['Mauro Icardi','Victor Osimhen','Dries Mertens','Barış Alper Yılmaz','Lucas Torreira','Kerem Aktürkoğlu'],
-  2:['Robert Lewandowski','Lamine Yamal','Raphinha','Pedri','Ferran Torres','Dani Olmo']
+1:['Victor Osimhen','Barış Alper Yılmaz','Yunus Akgün','Leroy Sané','Rafael Leão','Deniz Gül','Gabriel Sara','İlkay Gündoğan','Lucas Torreira','Mario Lemina','Lesley Ugochukwu','Renato Nhaga','Aleksey Batrakov','Davinson Sánchez','Wilfried Singo','Roland Sallai','Abdülkerim Bardakcı','Eren Elmalı','Ismail Jakobs','El Chadaille Bitshiabu'],
+2:['Lamine Yamal','Raphinha','Gabriel Jesus','Karim Adeyemi','Anthony Gordon','Roony Bardghji','Pedri','Gavi','Fermín López','Dani Olmo','Frenkie de Jong','Marc Bernal','Rodrigo','João Cancelo','Alejandro Balde','Pau Cubarsí','Andreas Christensen','Jules Koundé','Eric García','Gerard Martín']
 };
+
+  
 function rnd(){seed=(seed*1664525+1013904223)>>>0;return seed/4294967296}
 function resetPositions(){ball={x:(rnd()-.5)*55,y:(rnd()-.5)*55,vx:(rnd()<.5?-1:1)*(5+rnd()*2),vy:(rnd()<.5?-1:1)*(5+rnd()*2),r:9};lastBallPos={x:ball.x,y:ball.y};stillTime=0;
 // No players in this mode: the arena and fast ball are the whole game.
